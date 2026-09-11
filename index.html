@@ -1,0 +1,903 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>보스 일정</title>
+<meta name="theme-color" content="#24405E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky: #EAF0F6;
+    --surface: #FFFFFF;
+    --ink: #1F2D3D;
+    --muted: #66768A;
+    --line: #D5DEE8;
+    --hero: #24405E;
+    --amber: #F2A93B;
+    --done: #3F8A5C;
+    --cancel: #B84A3E;
+    --display: "Do Hyeon", "IBM Plex Sans KR", sans-serif;
+    --body: "IBM Plex Sans KR", -apple-system, "Apple SD Gothic Neo", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  html { -webkit-text-size-adjust: 100%; } /* iOS 가로 전환 시 글자 커지는 것 방지 */
+  body {
+    background: var(--sky);
+    color: var(--ink);
+    font: 400 15px/1.65 var(--body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* 한국어는 단어 중간에서 끊지 않고 띄어쓰기에서 줄바꿈 */
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+  /* 숫자 폭을 고정해 시간/날짜가 흔들리지 않게 */
+  .hero-count, .day-num, .time, .cal-cell .n, .updated { font-variant-numeric: tabular-nums; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+
+  .wrap { max-width: 520px; margin: 0 auto; padding: 16px; }
+
+  /* 상단 */
+  .top { display: flex; align-items: center; gap: 8px; margin: 4px 0 14px; }
+  .top h1 { font: 400 26px/1 var(--display); margin: 0; flex: 1; letter-spacing: -0.01em; }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--surface); display: grid; place-items: center; cursor: pointer;
+  }
+  .icon-btn svg { width: 20px; height: 20px; }
+  .icon-btn.on { background: var(--amber); border-color: var(--amber); color: var(--ink); }
+  .spin svg { animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* 다음 보스 */
+  .hero {
+    background: var(--hero); color: #fff; border-radius: 22px; padding: 20px 20px 18px;
+    margin-bottom: 22px; position: relative; overflow: hidden;
+  }
+  .hero::after { /* 단풍 실루엣 대신 은은한 달 */
+    content: ""; position: absolute; right: -40px; top: -40px; width: 150px; height: 150px;
+    border-radius: 50%; background: rgba(242,169,59,.14);
+  }
+  .hero-label { font-size: 13px; color: rgba(255,255,255,.72); margin: 0; }
+  .hero-count { font: 400 46px/1.05 var(--display); color: var(--amber); margin: 6px 0 12px; }
+  .hero-boss { font-size: 18px; font-weight: 600; margin: 0; }
+  .hero-sub { font-size: 14px; color: rgba(255,255,255,.78); margin: 2px 0 0; }
+  .hero-empty .hero-count { font-size: 30px; color: #fff; }
+
+  /* 날짜 그룹 */
+  .day { margin-bottom: 18px; }
+  .day-head { display: flex; align-items: baseline; gap: 10px; margin: 0 4px 8px; }
+  .day-num { font: 400 32px/1 var(--display); }
+  .day-rel { font-weight: 600; font-size: 15px; }
+  .day-meta { color: var(--muted); font-size: 13px; }
+  .day.today .day-num { color: var(--hero); }
+
+  .panel { background: var(--surface); border-radius: 16px; border: 1px solid var(--line); }
+  .row { display: grid; grid-template-columns: 86px 1fr; padding: 14px 14px 14px 0; }
+  .row + .row { border-top: 1px solid var(--line); }
+  .time {
+    font: 400 20px/1.3 var(--display); text-align: right; padding-right: 12px;
+    border-right: 3px solid var(--amber); margin-right: 12px; align-self: stretch;
+    white-space: nowrap; /* 86px 칼럼에서 "20:00" 이 두 줄로 쪼개지지 않게 */
+  }
+  .time.none { color: var(--muted); font-size: 14px; }
+  .boss { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 600; font-size: 16px; line-height: 1.4; }
+  .boss + .boss { margin-top: 1px; }
+  .chip { font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 999px; background: #EEF1F5; color: var(--muted); }
+  .chip.d-노멀 { background: #E2F1EF; color: #2C6B63; }
+  .chip.d-하드 { background: #FBE5E1; color: #A2402F; }
+  .chip.d-카오스 { background: #ECE6F7; color: #5B478F; }
+  .chip.d-익스트림 { background: var(--ink); color: #fff; }
+  .chip.s-완료 { background: #E3F1E8; color: var(--done); }
+  .chip.s-취소 { background: #F8E3E0; color: var(--cancel); }
+  .detail { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  .detail b { font-weight: 500; color: var(--ink); }
+  .memo { font-size: 14px; margin-top: 6px; white-space: pre-wrap; background: var(--sky); border-radius: 10px; padding: 6px 10px; }
+  .row.is-완료 .time, .row.is-완료 .boss-name { opacity: .5; }
+  .row.is-취소 .boss-name { text-decoration: line-through; color: var(--muted); }
+  .row.is-취소 .time { border-right-color: var(--line); color: var(--muted); }
+
+  .actions { display: flex; gap: 6px; margin-top: 10px; }
+  .actions button {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 9px;
+    padding: 4px 12px; font-size: 13px; cursor: pointer;
+  }
+  .actions .danger { color: var(--cancel); }
+
+  .past-toggle {
+    width: 100%; background: none; border: 1px dashed var(--line); border-radius: 14px;
+    padding: 12px; color: var(--muted); cursor: pointer; margin: 6px 0 18px;
+  }
+  .notice { text-align: center; color: var(--muted); padding: 28px 12px; }
+  .notice.err { color: var(--cancel); }
+  .updated { text-align: center; color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+  /* 보기 전환 탭 */
+  .view-tabs {
+    display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 13px; padding: 4px; margin-bottom: 16px;
+  }
+  .view-tab {
+    flex: 1; border: 0; background: none; border-radius: 10px; padding: 9px;
+    font-weight: 600; font-size: 14px; color: var(--muted); cursor: pointer;
+  }
+  .view-tab.on { background: var(--hero); color: #fff; }
+
+  /* 달력 */
+  .cal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 4px 2px 12px; }
+  .cal-head h2 {
+    font: 400 21px/1.2 var(--display); margin: 0; letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .cal-nav { display: flex; align-items: center; gap: 6px; }
+  .cal-nav button {
+    height: 34px; min-width: 34px; padding: 0 9px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--surface); cursor: pointer;
+    display: grid; place-items: center; font-size: 13px; white-space: nowrap; color: var(--muted);
+  }
+  .cal-nav svg { width: 17px; height: 17px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 20px; }
+  .cal-dow { text-align: center; font-size: 12px; line-height: 1; color: var(--muted); padding-bottom: 2px; }
+  .cal-dow.sun { color: var(--cancel); }
+  .cal-dow.sat { color: #3B5D8A; }
+  .cal-cell {
+    aspect-ratio: 1; min-height: 46px; /* aspect-ratio 미지원 브라우저 대비 */
+    border-radius: 12px; border: 2px solid transparent;
+    background: var(--surface); display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 4px; cursor: pointer; padding: 2px; line-height: 1;
+  }
+  .cal-cell.outside { background: none; border-color: transparent; color: var(--muted); opacity: .35; cursor: default; }
+  .cal-cell.today { border-color: var(--hero); }
+  .cal-cell.selected { background: var(--hero); border-color: var(--hero); color: #fff; }
+  .cal-cell .n { font: 400 15px/1 var(--display); }
+  .cal-cell .dots { display: flex; gap: 2px; min-height: 5px; }
+  .cal-cell .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--amber); }
+  .cal-cell .dot.done { background: var(--done); }
+  .cal-cell .dot.cancel { background: var(--cancel); }
+  .cal-cell.selected .dot { background: rgba(255,255,255,.85); }
+  .cal-day-title { display: flex; align-items: baseline; gap: 8px; margin: 0 4px 8px; font-weight: 600; font-size: 15px; }
+  .cal-day-title .rel { color: var(--hero); }
+
+  /* 추가 버튼 */
+  .fab {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    background: var(--amber); color: var(--ink); border: 0; border-radius: 999px;
+    padding: 14px 26px; font-weight: 600; font-size: 16px; cursor: pointer;
+    box-shadow: 0 6px 18px rgba(36,64,94,.28);
+  }
+
+  /* 다이얼로그 */
+  dialog {
+    border: 0; padding: 0; border-radius: 20px; width: min(480px, calc(100% - 24px));
+    background: var(--surface); color: var(--ink);
+  }
+  dialog::backdrop { background: rgba(31,45,61,.45); }
+  dialog[open] { animation: rise .18s ease-out; }
+  @keyframes rise { from { transform: translateY(12px); opacity: 0; } }
+  .dlg { padding: 20px; }
+  .dlg h2 { font: 400 24px/1.2 var(--display); margin: 0 0 14px; }
+  .field { display: block; margin-bottom: 12px; }
+  .field span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  .field input, .field select, .field textarea {
+    width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+    background: var(--surface); font-size: 16px; /* iOS 확대 방지 */
+  }
+  /* 네이티브 화살표를 끄고 직접 그려서 위치를 고정 (브라우저마다 어긋나는 것 방지) */
+  .field select {
+    -webkit-appearance: none; -moz-appearance: none; appearance: none;
+    padding-right: 34px; text-overflow: ellipsis;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2366768A' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 11px center;
+    background-size: 15px 15px;
+  }
+  .field textarea { min-height: 70px; resize: vertical; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* 보스 여러 개 입력 */
+  .boss-row { display: grid; grid-template-columns: minmax(0, 1fr) 126px 40px; gap: 6px; margin-bottom: 6px; }
+  .boss-row .row-del {
+    border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+    color: var(--muted); cursor: pointer; font-size: 20px; line-height: 1;
+    display: grid; place-items: center; padding: 0;
+  }
+  .boss-row .row-del:disabled { opacity: .35; cursor: default; }
+  .add-row {
+    width: 100%; border: 1px dashed var(--line); border-radius: 10px; background: none;
+    padding: 10px; color: var(--hero); font-weight: 600; font-size: 14px; cursor: pointer;
+  }
+  .dlg-foot { display: flex; gap: 8px; margin-top: 6px; }
+  .dlg-foot button { flex: 1; border-radius: 12px; padding: 12px; cursor: pointer; font-weight: 600; }
+  .btn-ghost { background: var(--surface); border: 1px solid var(--line); }
+  .btn-main { background: var(--hero); color: #fff; border: 0; }
+  .btn-main:disabled { opacity: .6; cursor: wait; }
+  .form-err { color: var(--cancel); font-size: 14px; min-height: 1.2em; margin: 0 0 8px; }
+
+  .toast {
+    position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top)); transform: translate(-50%, -80px);
+    background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 14px;
+    transition: transform .2s ease; z-index: 10;
+  }
+  .toast.show { transform: translate(-50%, 0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>보스 일정</h1>
+    <button class="icon-btn" id="refreshBtn" aria-label="새로고침">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>
+    </button>
+    <button class="icon-btn" id="lockBtn" aria-label="편집 모드">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path id="lockShackle" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+    </button>
+  </header>
+
+  <section id="hero"></section>
+
+  <div class="view-tabs" role="tablist">
+    <button class="view-tab on" id="tabList" role="tab">목록</button>
+    <button class="view-tab" id="tabCal" role="tab">달력</button>
+  </div>
+
+  <section id="calendar" hidden></section>
+  <main id="list"><p class="notice">일정을 불러오는 중이에요</p></main>
+  <p class="updated" id="updated"></p>
+</div>
+
+<button class="fab" id="addBtn" hidden>일정 추가</button>
+<div class="toast" id="toast" role="status"></div>
+
+<!-- 비밀번호 -->
+<dialog id="loginDlg">
+  <form class="dlg" id="loginForm" method="dialog">
+    <h2>편집 모드</h2>
+    <label class="field"><span>비밀번호</span>
+      <input type="password" id="pwInput" autocomplete="current-password" required>
+    </label>
+    <p class="form-err" id="loginErr"></p>
+    <div class="dlg-foot">
+      <button type="button" class="btn-ghost" data-close>닫기</button>
+      <button type="submit" class="btn-main" id="loginSubmit">편집 모드 켜기</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 일정 입력 -->
+<dialog id="formDlg">
+  <form class="dlg" id="itemForm" method="dialog">
+    <h2 id="formTitle">일정 추가</h2>
+    <div class="two">
+      <label class="field"><span>날짜</span><input type="date" name="date" required></label>
+      <label class="field"><span>시간</span><input type="time" name="time"></label>
+    </div>
+    <div class="field">
+      <span>보스 (한 파티에 여러 개면 추가하세요)</span>
+      <div id="bossRows"></div>
+      <button type="button" class="add-row" id="addBossRow">+ 보스 추가</button>
+    </div>
+    <div class="two">
+      <label class="field"><span>캐릭터</span><input name="character" placeholder="본캐"></label>
+      <label class="field"><span>상태</span>
+        <select name="status"><option>예정</option><option>완료</option><option>취소</option></select>
+      </label>
+    </div>
+    <label class="field"><span>파티원</span>
+      <select name="party">
+        <option value="">선택 안 함</option>
+        <option value="1">1명</option><option value="2">2명</option><option value="3">3명</option>
+        <option value="4">4명</option><option value="5">5명</option>
+      </select>
+    </label>
+    <label class="field"><span>메모</span><textarea name="memo" placeholder="늦으면 연락할게"></textarea></label>
+    <p class="form-err" id="formErr"></p>
+    <div class="dlg-foot">
+      <button type="button" class="btn-ghost" data-close>닫기</button>
+      <button type="submit" class="btn-main" id="formSubmit">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<datalist id="bossList">
+  <option>자쿰</option><option>매그너스</option><option>힐라</option><option>파풀라투스</option>
+  <option>피에르</option><option>반반</option><option>블러디퀸</option><option>벨룸</option>
+  <option>핑크빈</option><option>시그너스</option><option>스우</option><option>데미안</option>
+  <option>가디언 엔젤 슬라임</option><option>루시드</option><option>윌</option><option>더스크</option>
+  <option>진 힐라</option><option>듄켈</option><option>선택받은 세렌</option><option>감시자 칼로스</option>
+  <option>최초의 대적자</option><option>카링</option><option>림보</option><option>발드릭스</option>
+  <option>검은 마법사</option>
+</datalist>
+
+<script>
+/* ▼ Apps Script 웹 앱 배포 URL을 넣으세요 (https://script.google.com/macros/s/.../exec) */
+const API_URL = 'https://script.google.com/macros/s/AKfycbyWGsT10EoTC7PLXuO7gls931zNbDbL2BI3hFx7J4ZgQ9Kd_mwWlUgFzEBTrezWSUSc/exec';
+
+const REFRESH_MS = 60 * 1000;
+const PW_KEY = 'boss-schedule-pw';
+const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+const DEFAULT_TIME = '13:00';   // 일정 추가 시 미리 채워지는 시간 (오후 1:00)
+const DIFFICULTIES = ['이지', '노멀', '하드', '카오스', '익스트림'];
+
+const VIEW_KEY = 'boss-schedule-view';
+const state = {
+  items: [], password: null, showPast: false, loaded: false, error: '', updatedAt: null,
+  view: 'list', calMonth: null, calSelected: null
+};
+const $ = (id) => document.getElementById(id);
+
+/* 비밀번호는 내 기기에만 저장 */
+let memPw = null;
+const pwStore = {
+  get() { try { return localStorage.getItem(PW_KEY); } catch (e) { return memPw; } },
+  set(v) { memPw = v; try { localStorage.setItem(PW_KEY, v); } catch (e) {} },
+  clear() { memPw = null; try { localStorage.removeItem(PW_KEY); } catch (e) {} }
+};
+
+/* ---------- 날짜 도우미 ---------- */
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseDate = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const startOf = (it) => {
+  const d = parseDate(it.date);
+  if (it.time) { const [h, m] = it.time.split(':').map(Number); d.setHours(h, m); }
+  return d;
+};
+const sortKey = (it) => `${it.date} ${it.time || '99:99'}`;
+
+function relDay(dateStr) {
+  const today = parseDate(ymd(new Date()));
+  const diff = Math.round((parseDate(dateStr) - today) / 86400000);
+  if (diff === 0) return '오늘';
+  if (diff === 1) return '내일';
+  if (diff === -1) return '어제';
+  return '';
+}
+
+function countdown(it) {
+  const now = new Date();
+  if (!it.time) {
+    const rel = relDay(it.date);
+    if (rel) return `${rel} 중`;
+    const days = Math.round((parseDate(it.date) - parseDate(ymd(now))) / 86400000);
+    return `${days}일 후`;
+  }
+  const mins = Math.round((startOf(it) - now) / 60000);
+  if (mins <= 0) return '진행 중';
+  const d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60;
+  if (d > 0) return h ? `${d}일 ${h}시간 후` : `${d}일 후`;
+  if (h > 0) return m ? `${h}시간 ${m}분 후` : `${h}시간 후`;
+  return `${m}분 후`;
+}
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* 파티원은 숫자로 저장하고 보여줄 때만 "명"을 붙여요 (시트에 직접 적은 글자는 그대로) */
+const partyText = (v) => {
+  const s = String(v ?? '').trim();
+  return /^\d+$/.test(s) ? `${s}명` : s;
+};
+
+/* ---------- 파티 묶기 ----------
+   보스는 한 마리에 한 줄씩 저장돼요. 날짜·시간·캐릭터·파티원·메모·상태가 같으면
+   같이 도는 한 파티로 보고 화면에서도 한 덩어리로 묶어서 보여줘요. */
+const groupKey = (it) =>
+  [it.date, it.time || '', it.character || '', it.party || '', it.memo || '', it.status].join('|');
+
+function groupParties(items) {
+  const map = new Map();
+  items.forEach((it) => {
+    const k = groupKey(it);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(it);
+  });
+  return [...map.values()];
+}
+
+/* 파티 묶음을 입력 폼이 쓰는 모양으로 */
+function groupToForm(group) {
+  const it = group[0];
+  return {
+    date: it.date, time: it.time, character: it.character,
+    status: it.status, party: it.party, memo: it.memo,
+    bosses: group.map((b) => ({ boss: b.boss, difficulty: b.difficulty }))
+  };
+}
+
+/* ---------- 렌더링 ---------- */
+function nextItem() {
+  const now = new Date();
+  const todayStr = ymd(now);
+  return state.items
+    .filter((it) => it.status === '예정')
+    .filter((it) => it.time ? startOf(it) > new Date(now - 30 * 60000) : it.date >= todayStr)
+    .sort((a, b) => sortKey(a).localeCompare(sortKey(b)))[0];
+}
+
+function renderHero() {
+  const hero = $('hero');
+  if (!state.loaded) { hero.innerHTML = ''; return; }
+  const it = nextItem();
+  if (!it) {
+    hero.innerHTML = `<div class="hero hero-empty"><p class="hero-label">다음 보스</p>
+      <p class="hero-count">잡힌 일정이 없어요</p></div>`;
+    return;
+  }
+  const d = parseDate(it.date);
+  // 같은 파티면 보스를 한 줄에 모아서 보여줘요
+  const title = state.items.filter((x) => groupKey(x) === groupKey(it))
+    .map((b) => [b.difficulty, b.boss].filter(Boolean).join(' ')).join(', ');
+  const sub = [`${d.getMonth() + 1}월 ${d.getDate()}일 ${WEEK[d.getDay()]}요일${it.time ? ' ' + it.time : ''}`, it.character]
+    .filter(Boolean).map(esc).join('<br>');
+  hero.innerHTML = `<div class="hero"><p class="hero-label">다음 보스</p>
+    <p class="hero-count">${esc(countdown(it))}</p>
+    <p class="hero-boss">${esc(title)}</p><p class="hero-sub">${sub}</p></div>`;
+}
+
+/* 한 파티(보스 여러 마리)를 한 칸으로 그려요 */
+function rowHTML(group) {
+  const it = group[0];
+  const editing = !!state.password;
+  // 상태는 파티 전체가 같으니 첫 줄에만 붙여요
+  const bosses = group.map((b, i) => {
+    const chips = [
+      b.difficulty ? `<span class="chip d-${esc(b.difficulty)}">${esc(b.difficulty)}</span>` : '',
+      i === 0 && b.status !== '예정' ? `<span class="chip s-${esc(b.status)}">${esc(b.status)}</span>` : ''
+    ].join('');
+    return `<div class="boss"><span class="boss-name">${esc(b.boss)}</span>${chips}</div>`;
+  }).join('');
+  const ids = esc(group.map((b) => b.id).join(','));
+  return `<div class="row is-${esc(it.status)}">
+    <div class="time ${it.time ? '' : 'none'}">${it.time ? esc(it.time) : '미정'}</div>
+    <div>
+      ${bosses}
+      ${it.character ? `<div class="detail">캐릭터 <b>${esc(it.character)}</b></div>` : ''}
+      ${it.party ? `<div class="detail">파티 <b>${esc(partyText(it.party))}</b></div>` : ''}
+      ${it.memo ? `<div class="memo">${esc(it.memo)}</div>` : ''}
+      ${editing ? `<div class="actions">
+        <button data-act="edit" data-ids="${ids}">수정</button>
+        <button data-act="copy" data-ids="${ids}">다음 주로 복사</button>
+        <button class="danger" data-act="delete" data-ids="${ids}">삭제</button>
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+function dayHTML(dateStr, items) {
+  const d = parseDate(dateStr);
+  const rel = relDay(dateStr);
+  return `<section class="day ${rel === '오늘' ? 'today' : ''}">
+    <h2 class="day-head">
+      <span class="day-num">${d.getDate()}</span>
+      ${rel ? `<span class="day-rel">${rel}</span>` : ''}
+      <span class="day-meta">${d.getMonth() + 1}월 ${WEEK[d.getDay()]}요일</span>
+    </h2>
+    <div class="panel">${groupParties(items).map(rowHTML).join('')}</div>
+  </section>`;
+}
+
+function groupByDate(items) {
+  const map = new Map();
+  items.forEach((it) => { if (!map.has(it.date)) map.set(it.date, []); map.get(it.date).push(it); });
+  return map;
+}
+
+function renderList() {
+  const list = $('list');
+  if (!API_URL) {
+    list.innerHTML = `<p class="notice err">index.html 안의 API_URL에 Apps Script 웹 앱 주소를 넣어 주세요.</p>`;
+    return;
+  }
+  if (!state.loaded) {
+    list.innerHTML = state.error
+      ? `<p class="notice err">일정을 불러오지 못했어요. ${esc(state.error)}<br>새로고침 버튼을 눌러 다시 시도해 주세요.</p>`
+      : `<p class="notice">일정을 불러오는 중이에요</p>`;
+    return;
+  }
+  const todayStr = ymd(new Date());
+  const sorted = [...state.items].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+  const upcoming = sorted.filter((it) => it.date >= todayStr);
+  const past = sorted.filter((it) => it.date < todayStr).reverse();
+
+  let html = '';
+  if (!upcoming.length) {
+    html += `<p class="notice">${state.password ? '아래 일정 추가 버튼으로 첫 일정을 넣어 보세요.' : '아직 등록된 일정이 없어요.'}</p>`;
+  }
+  groupByDate(upcoming).forEach((items, date) => { html += dayHTML(date, items); });
+
+  if (past.length) {
+    html += `<button class="past-toggle" id="pastToggle">${state.showPast ? '지난 일정 접기' : `지난 일정 ${past.length}개 보기`}</button>`;
+    if (state.showPast) {
+      groupByDate(past).forEach((items, date) => {
+        html += dayHTML(date, items.sort((a, b) => sortKey(a).localeCompare(sortKey(b))));
+      });
+    }
+  }
+  list.innerHTML = html;
+  if (state.error) toast(state.error);
+}
+
+/* ---------- 달력 ---------- */
+function renderCalendar() {
+  const cal = $('calendar');
+  if (state.view !== 'cal') return;
+  if (!API_URL) {
+    cal.innerHTML = `<p class="notice err">index.html 안의 API_URL에 Apps Script 웹 앱 주소를 넣어 주세요.</p>`;
+    return;
+  }
+  if (!state.loaded) {
+    cal.innerHTML = state.error
+      ? `<p class="notice err">일정을 불러오지 못했어요. ${esc(state.error)}</p>`
+      : `<p class="notice">일정을 불러오는 중이에요</p>`;
+    return;
+  }
+
+  const month = state.calMonth;
+  const y = month.getFullYear(), m = month.getMonth();
+  const todayStr = ymd(new Date());
+  const byDate = groupByDate([...state.items].sort((a, b) => sortKey(a).localeCompare(sortKey(b))));
+
+  const first = new Date(y, m, 1);
+  const start = new Date(y, m, 1 - first.getDay());
+
+  let cells = WEEK.map((w, i) =>
+    `<div class="cal-dow ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${w}</div>`).join('');
+
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    if (i >= 35 && d.getMonth() !== m) break;
+    const ds = ymd(d);
+    const outside = d.getMonth() !== m;
+    const items = byDate.get(ds) || [];
+    // 점 하나가 파티 하나 (보스 여러 마리를 같이 도는 날도 점은 하나)
+    const dots = groupParties(items).slice(0, 4).map(([it]) =>
+      `<span class="dot ${it.status === '완료' ? 'done' : it.status === '취소' ? 'cancel' : ''}"></span>`).join('');
+    const cls = ['cal-cell', outside ? 'outside' : '', ds === todayStr ? 'today' : '',
+      ds === state.calSelected ? 'selected' : ''].filter(Boolean).join(' ');
+    cells += outside
+      ? `<div class="${cls}"><span class="n">${d.getDate()}</span></div>`
+      : `<button class="${cls}" data-date="${ds}">
+           <span class="n">${d.getDate()}</span><span class="dots">${dots}</span>
+         </button>`;
+  }
+
+  const sel = state.calSelected;
+  const selItems = sel ? (byDate.get(sel) || []) : [];
+  let dayHtml = '';
+  if (sel) {
+    const d = parseDate(sel);
+    const rel = relDay(sel);
+    dayHtml = `<h3 class="cal-day-title">
+        <span>${d.getMonth() + 1}월 ${d.getDate()}일 ${WEEK[d.getDay()]}요일</span>
+        ${rel ? `<span class="rel">${rel}</span>` : ''}
+      </h3>` + (selItems.length
+      ? `<div class="panel">${groupParties(selItems).map(rowHTML).join('')}</div>`
+      : `<p class="notice">${state.password ? '아래 일정 추가 버튼으로 이 날 일정을 넣어 보세요.' : '이 날은 일정이 없어요.'}</p>`);
+  }
+
+  cal.innerHTML = `
+    <div class="cal-head">
+      <h2>${y}년 ${m + 1}월</h2>
+      <div class="cal-nav">
+        <button id="calPrev" aria-label="이전 달">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <button id="calToday">오늘</button>
+        <button id="calNext" aria-label="다음 달">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="cal-grid">${cells}</div>
+    ${dayHtml}`;
+}
+
+function setView(view) {
+  state.view = view;
+  try { localStorage.setItem(VIEW_KEY, view); } catch (e) {}
+  if (view === 'cal' && !state.calMonth) {
+    const now = new Date();
+    state.calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    state.calSelected = ymd(now);
+  }
+  render();
+}
+
+$('tabList').addEventListener('click', () => setView('list'));
+$('tabCal').addEventListener('click', () => setView('cal'));
+
+$('calendar').addEventListener('click', (e) => {
+  const month = state.calMonth;
+  // SVG 아이콘을 눌러도 버튼으로 인식되게 closest 사용
+  const nav = e.target.closest('.cal-nav button');
+  if (nav && nav.id === 'calPrev') {
+    state.calMonth = new Date(month.getFullYear(), month.getMonth() - 1, 1);
+    renderCalendar(); return;
+  }
+  if (nav && nav.id === 'calNext') {
+    state.calMonth = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+    renderCalendar(); return;
+  }
+  if (nav && nav.id === 'calToday') {
+    const now = new Date();
+    state.calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    state.calSelected = ymd(now);
+    renderCalendar(); return;
+  }
+  const cell = e.target.closest('.cal-cell[data-date]');
+  if (cell) {
+    state.calSelected = cell.dataset.date === state.calSelected ? null : cell.dataset.date;
+    renderCalendar(); return;
+  }
+  handleItemAction(e);
+});
+
+function renderChrome() {
+  const editing = !!state.password;
+  $('addBtn').hidden = !editing;
+  $('addBtn').textContent = state.view === 'cal' && state.calSelected ? '이 날에 일정 추가' : '일정 추가';
+  $('tabList').classList.toggle('on', state.view === 'list');
+  $('tabCal').classList.toggle('on', state.view === 'cal');
+  $('list').hidden = state.view !== 'list';
+  $('calendar').hidden = state.view !== 'cal';
+  $('lockBtn').classList.toggle('on', editing);
+  $('lockBtn').setAttribute('aria-label', editing ? '편집 모드 끄기' : '편집 모드');
+  $('lockShackle').setAttribute('d', editing ? 'M8 11V7a4 4 0 0 1 7.5-2' : 'M8 11V7a4 4 0 0 1 8 0v4');
+  $('updated').textContent = state.updatedAt
+    ? `마지막 확인 ${pad(state.updatedAt.getHours())}:${pad(state.updatedAt.getMinutes())}` : '';
+}
+
+function render() { renderChrome(); renderHero(); renderList(); renderCalendar(); }
+
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ---------- API ---------- */
+async function load() {
+  if (!API_URL) { render(); return; }
+  $('refreshBtn').classList.add('spin');
+  try {
+    const res = await fetch(`${API_URL}?t=${Date.now()}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    state.items = data.items;
+    state.loaded = true;
+    state.error = '';
+    state.updatedAt = new Date();
+  } catch (err) {
+    state.error = err.message || '네트워크를 확인해 주세요';
+  } finally {
+    $('refreshBtn').classList.remove('spin');
+    render();
+    state.error = '';
+  }
+}
+
+async function api(action, item, password = state.password) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // CORS 사전 요청을 피하기 위한 설정
+    body: JSON.stringify({ action, password, item })
+  });
+  const data = await res.json();
+  if (!data.ok) {
+    if (data.error === '비밀번호가 틀렸어요' && action !== 'verify') {
+      state.password = null; pwStore.clear(); renderChrome();
+    }
+    throw new Error(data.error || '요청에 실패했어요');
+  }
+  if (data.items) { state.items = data.items; state.updatedAt = new Date(); }
+  return data;
+}
+
+/* ---------- 편집 모드 ---------- */
+$('lockBtn').addEventListener('click', () => {
+  if (state.password) {
+    state.password = null; pwStore.clear(); render(); toast('편집 모드를 껐어요');
+    return;
+  }
+  if (!API_URL) { toast('API_URL을 먼저 설정해 주세요'); return; }
+  $('loginErr').textContent = '';
+  $('pwInput').value = '';
+  $('loginDlg').showModal();
+});
+
+$('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pw = $('pwInput').value;
+  const btn = $('loginSubmit');
+  btn.disabled = true;
+  try {
+    await api('verify', null, pw);
+    state.password = pw; pwStore.set(pw);
+    $('loginDlg').close(); render(); toast('편집 모드를 켰어요');
+  } catch (err) {
+    $('loginErr').textContent = err.message;
+  } finally { btn.disabled = false; }
+});
+
+const form = $('itemForm');
+const bossRows = $('bossRows');
+
+/* 보스 한 줄 추가 (이름 + 난이도 + 삭제) */
+function addBossRow(boss = '', difficulty = '') {
+  const row = document.createElement('div');
+  row.className = 'boss-row';
+  row.innerHTML = `
+    <input class="b-name" list="bossList" required placeholder="루시드">
+    <select class="b-diff">
+      <option value="">난이도</option>
+      ${DIFFICULTIES.map((d) => `<option>${d}</option>`).join('')}
+    </select>
+    <button type="button" class="row-del" aria-label="이 보스 빼기">&times;</button>`;
+  row.querySelector('.b-name').value = boss || '';
+  row.querySelector('.b-diff').value = difficulty || '';
+  bossRows.appendChild(row);
+  syncBossRows();
+  return row;
+}
+
+/* 줄이 하나뿐이면 삭제 버튼을 잠가요 */
+function syncBossRows() {
+  const rows = bossRows.querySelectorAll('.boss-row');
+  rows.forEach((r) => { r.querySelector('.row-del').disabled = rows.length === 1; });
+}
+
+$('addBossRow').addEventListener('click', () => { addBossRow().querySelector('.b-name').focus(); });
+bossRows.addEventListener('click', (e) => {
+  if (!e.target.classList.contains('row-del')) return;
+  if (bossRows.querySelectorAll('.boss-row').length === 1) return;
+  e.target.closest('.boss-row').remove();
+  syncBossRows();
+});
+
+/* 수정 중인 파티의 일정 id들 (보스 줄 순서와 짝을 이뤄요. 추가/복사면 빈 배열) */
+let editIds = [];
+
+function openForm(item, title, ids = []) {
+  form.reset();
+  editIds = ids;
+  $('formErr').textContent = '';
+  $('formTitle').textContent = title;
+  // 새로 추가할 때만 날짜/시간을 미리 채워요 (수정은 저장된 값 그대로)
+  const data = Object.assign({ date: ymd(new Date()), time: DEFAULT_TIME, status: '예정' }, item);
+
+  // 시트에 직접 적은 파티원 값(예: "길드원 2명")은 드롭다운에 없어서 빈칸이 돼요. 임시 항목으로 살려 둬요
+  const partySel = form.elements.party;
+  partySel.querySelectorAll('option[data-extra]').forEach((o) => o.remove());
+  const pv = String(data.party || '');
+  if (pv && ![...partySel.options].some((o) => o.value === pv)) {
+    const o = document.createElement('option');
+    o.value = pv; o.textContent = partyText(pv); o.dataset.extra = '1';
+    partySel.appendChild(o);
+  }
+
+  ['date', 'time', 'character', 'status', 'party', 'memo']
+    .forEach((k) => { form.elements[k].value = data[k] || ''; });
+  if (!form.elements.status.value) form.elements.status.value = '예정';
+
+  bossRows.innerHTML = '';
+  const bosses = data.bosses && data.bosses.length ? data.bosses : [{ boss: data.boss, difficulty: data.difficulty }];
+  bosses.forEach((b) => addBossRow(b.boss, b.difficulty));
+  $('formDlg').showModal();
+}
+
+$('addBtn').addEventListener('click', () => {
+  const preset = state.view === 'cal' && state.calSelected ? { date: state.calSelected } : {};
+  openForm(preset, '일정 추가');
+});
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const base = Object.fromEntries(new FormData(form).entries()); // 보스 줄은 name이 없어 안 들어와요
+  const bosses = [...bossRows.querySelectorAll('.boss-row')]
+    .map((r) => ({ boss: r.querySelector('.b-name').value.trim(), difficulty: r.querySelector('.b-diff').value }))
+    .filter((b) => b.boss);
+  if (!bosses.length) { $('formErr').textContent = '보스를 한 개 이상 입력해 주세요'; return; }
+
+  const btn = $('formSubmit');
+  const ids = editIds;                       // 이 파티가 이미 갖고 있던 줄들
+  const gone = ids.slice(bosses.length);     // 보스를 빼면 그 줄은 지워요
+  const total = bosses.length + gone.length;
+  btn.disabled = true;
+  let saved = 0;
+  try {
+    // 보스마다 한 줄씩. 날짜·시간·캐릭터·파티원·메모·상태는 파티가 통째로 공유해요.
+    for (let i = 0; i < bosses.length; i++) {
+      btn.textContent = total > 1 ? `저장 중 ${saved + 1}/${total}` : '저장 중';
+      const id = ids[i] || '';
+      await api(id ? 'update' : 'create', Object.assign({}, base, bosses[i], { id }));
+      if (!id) {
+        // 새로 만든 줄의 id를 기억해 둬요 (중간에 실패해 다시 저장해도 중복으로 안 생기게)
+        const made = state.items.find((x) => x.boss === bosses[i].boss && x.date === base.date
+          && (x.time || '') === (base.time || '') && !ids.includes(x.id));
+        if (made) ids[i] = made.id;
+      }
+      saved++;
+    }
+    for (const id of gone) {
+      btn.textContent = `저장 중 ${saved + 1}/${total}`;
+      await api('delete', { id });
+      saved++;
+    }
+    $('formDlg').close(); render();
+    if (editIds.length) toast(bosses.length > 1 ? `파티 일정 ${bosses.length}개를 저장했어요` : '일정을 수정했어요');
+    else toast(bosses.length > 1 ? `일정 ${bosses.length}개를 추가했어요` : '일정을 추가했어요');
+  } catch (err) {
+    // 여러 개 중 일부만 저장됐을 수 있으니 어디까지 됐는지 알려줘요
+    $('formErr').textContent = saved
+      ? `${saved}개는 저장됐어요. 남은 건 실패: ${err.message}`
+      : err.message;
+    if (saved) render();
+  } finally { btn.disabled = false; btn.textContent = '저장'; }
+});
+
+$('list').addEventListener('click', (e) => {
+  if (e.target.id === 'pastToggle') { state.showPast = !state.showPast; renderList(); return; }
+  handleItemAction(e);
+});
+
+async function handleItemAction(e) {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  // 버튼은 파티 전체(보스 여러 마리)를 한꺼번에 다뤄요
+  const group = (btn.dataset.ids || '').split(',')
+    .map((id) => state.items.find((x) => x.id === id)).filter(Boolean);
+  if (!group.length) return;
+  const it = group[0];
+  const names = group.map((b) => b.boss).join(', ');
+
+  if (btn.dataset.act === 'edit') openForm(groupToForm(group), '일정 수정', group.map((b) => b.id));
+  if (btn.dataset.act === 'copy') {
+    const d = parseDate(it.date); d.setDate(d.getDate() + 7);
+    openForm({ ...groupToForm(group), date: ymd(d), status: '예정' }, '다음 주로 복사');
+  }
+  if (btn.dataset.act === 'delete') {
+    if (!confirm(`${it.date} ${names} 일정${group.length > 1 ? ` ${group.length}개를 모두` : '을'} 삭제할까요?`)) return;
+    btn.disabled = true;
+    try {
+      for (const b of group) await api('delete', { id: b.id });
+      render(); toast(group.length > 1 ? `파티 일정 ${group.length}개를 삭제했어요` : '일정을 삭제했어요');
+    } catch (err) { render(); toast(err.message); }
+  }
+}
+
+document.querySelectorAll('[data-close]').forEach((b) =>
+  b.addEventListener('click', () => b.closest('dialog').close()));
+
+$('refreshBtn').addEventListener('click', load);
+
+/* ---------- 시작 ---------- */
+state.password = pwStore.get();
+{
+  let saved = 'list';
+  try { saved = localStorage.getItem(VIEW_KEY) || 'list'; } catch (e) {}
+  const now = new Date();
+  state.calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  state.calSelected = ymd(now);
+  state.view = saved === 'cal' ? 'cal' : 'list';
+}
+render();
+load();
+setInterval(load, REFRESH_MS);
+setInterval(renderHero, 30 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>
