@@ -14,8 +14,14 @@
 
 1. [sheets.new](https://sheets.new) 에서 새 시트를 만들고 이름을 정해요. (예: 보스 일정)
 2. 메뉴에서 **확장 프로그램 → Apps Script** 를 열어요.
-3. 기본 코드를 전부 지우고 `Code.gs` 내용을 붙여넣어요.
-4. 맨 위 `ADMIN_PASSWORD` 값을 내 비밀번호로 바꾸고 저장해요.
+3. 기본 코드를 전부 지우고 `Code.local.gs` 내용을 붙여넣어요. (내 PC에만 있는 파일이고, 비밀번호가 들어 있어요)
+4. 맨 위 `ADMIN_PASSWORD` 값이 내 비밀번호가 맞는지 확인하고 저장해요.
+   - 저장소에 올라가는 `Code.gs` 는 비밀번호 자리가 `여기에-비밀번호` 인 사본이에요. 진짜 비밀번호는 `.gitignore` 에 걸린 `Code.local.gs` 와 Apps Script 안에만 두세요.
+   - `Code.gs` 를 고쳤으면 아래 명령으로 로컬 사본을 다시 만들면 돼요.
+     ```powershell
+     (Get-Content Code.gs -Raw -Encoding UTF8) -replace "'여기에-비밀번호'", "'내비밀번호'" |
+       Set-Content Code.local.gs -Encoding UTF8 -NoNewline
+     ```
 5. 위쪽 함수 선택 칸에서 `setup` 을 고르고 **실행** 을 눌러요.
    - 권한 요청 창이 뜨면 내 계정을 선택해요.
    - "Google에서 확인하지 않은 앱" 경고가 나오면 **고급 → (프로젝트 이름)(으)로 이동** 을 누르고 허용해요. 내가 만든 스크립트라서 뜨는 정상적인 경고예요.
