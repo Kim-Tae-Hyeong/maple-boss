@@ -1,5 +1,6 @@
-# 비밀번호가 들어있는 로컬 전용 파일 — 커밋되지 않아요.
-# Apps Script에 붙여넣을 때는 Code.local.gs 를 쓰고, 저장소에는 Code.gs(자리표시자)만 올라가요.
+# 비밀번호가 들어있는 배포용 파일 — 커밋되지 않아요.
+# Apps Script에 붙여넣을 때는 apps-script-deploy.gs 를 쓰고, 저장소에는 Code.gs(자리표시자)만 올라가요.
+/apps-script-deploy.gs
 *.local.gs
 *.local.js
 *.local.json

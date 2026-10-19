@@ -6,6 +6,8 @@
 - **Apps Script**: 시트를 읽고 쓰는 API. 수정할 때는 비밀번호를 확인해요.
 - **GitHub Pages**: 여자친구와 내가 접속하는 URL
 
+Apps Script 배포용 파일 이름은 프로젝트 루트의 **`apps-script-deploy.gs`** 로 고정해요. 최신 배포 코드를 이 파일에 보관하고, 전체 내용을 Apps Script에 붙여넣으면 돼요. `.gitignore`에 파일명을 명시했으므로 Git에 포함되지 않아요. `Code.gs`는 비밀번호를 제거한 버전 관리용 사본이에요.
+
 여자친구는 URL로 들어와서 보기만 하고, 나는 같은 URL에서 자물쇠 버튼을 눌러 비밀번호를 넣으면 편집할 수 있어요. 비밀번호는 한 번 넣으면 그 기기에 기억돼요.
 
 ---
@@ -14,13 +16,13 @@
 
 1. [sheets.new](https://sheets.new) 에서 새 시트를 만들고 이름을 정해요. (예: 보스 일정)
 2. 메뉴에서 **확장 프로그램 → Apps Script** 를 열어요.
-3. 기본 코드를 전부 지우고 `Code.local.gs` 내용을 붙여넣어요. (내 PC에만 있는 파일이고, 비밀번호가 들어 있어요)
+3. 기본 코드를 전부 지우고 `apps-script-deploy.gs` 내용을 붙여넣어요. (내 PC에만 있는 파일이고, 비밀번호가 들어 있어요)
 4. 맨 위 `ADMIN_PASSWORD` 값이 내 비밀번호가 맞는지 확인하고 저장해요.
-   - 저장소에 올라가는 `Code.gs` 는 비밀번호 자리가 `여기에-비밀번호` 인 사본이에요. 진짜 비밀번호는 `.gitignore` 에 걸린 `Code.local.gs` 와 Apps Script 안에만 두세요.
-   - `Code.gs` 를 고쳤으면 아래 명령으로 로컬 사본을 다시 만들면 돼요.
+   - 저장소에 올라가는 `Code.gs` 는 비밀번호 자리가 `여기에-비밀번호` 인 사본이에요. 진짜 비밀번호는 `.gitignore` 에 걸린 `apps-script-deploy.gs` 와 Apps Script 안에만 두세요.
+   - `Code.gs` 를 고쳤으면 아래 명령으로 배포용 사본을 다시 만들면 돼요.
      ```powershell
      (Get-Content Code.gs -Raw -Encoding UTF8) -replace "'여기에-비밀번호'", "'내비밀번호'" |
-       Set-Content Code.local.gs -Encoding UTF8 -NoNewline
+       Set-Content apps-script-deploy.gs -Encoding UTF8 -NoNewline
      ```
 5. 위쪽 함수 선택 칸에서 `setup` 을 고르고 **실행** 을 눌러요.
    - 권한 요청 창이 뜨면 내 계정을 선택해요.
@@ -75,7 +77,7 @@ const API_URL = 'https://script.google.com/macros/s/여기에-복사한-주소/e
 
 - **Apps Script 코드를 고친 뒤 반영이 안 돼요**: 새 배포를 만들면 URL이 바뀌어요. 대신 **배포 → 배포 관리 → 연필 아이콘 → 버전: 새 버전 → 배포** 로 하면 기존 URL이 유지돼요.
 - **"일정을 불러오지 못했어요"**: 배포 설정의 액세스 권한이 "모든 사용자"인지, `API_URL` 이 `/exec` 로 끝나는지 확인해요.
-- **비밀번호를 바꾸고 싶어요**: `Code.gs` 의 `ADMIN_PASSWORD` 를 바꾼 뒤 위 방법으로 새 버전을 배포해요. 기존 기기에서는 자물쇠를 한 번 껐다가 새 비밀번호로 다시 켜요.
+- **비밀번호를 바꾸고 싶어요**: `apps-script-deploy.gs` 의 `ADMIN_PASSWORD` 를 바꾼 뒤 위 방법으로 새 버전을 배포해요. 기존 기기에서는 자물쇠를 한 번 껐다가 새 비밀번호로 다시 켜요.
 
 
 ## 일정 버튼과 저장 동작
@@ -84,4 +86,4 @@ const API_URL = 'https://script.google.com/macros/s/여기에-복사한-주소/e
 - **다음 주로 복사**를 누르면 입력창 없이 날짜만 7일 뒤로 옮겨 바로 저장합니다. 시간·보스·난이도·캐릭터·파티원·메모는 유지하고 상태는 예정으로 시작합니다.
 - 예정인 일정의 **완료** 버튼을 누르면 묶인 파티 전체를 완료로 변경합니다.
 - 조회가 20초 안에 끝나지 않으면 안내 메시지를 표시합니다. 새로고침 버튼으로 다시 조회할 수 있습니다.
-- 이 기능을 반영하려면 `Code.local.gs`를 Apps Script에 붙여넣고 기존 배포를 새 버전으로 업데이트한 뒤 `index.html`을 배포하세요.
+- 이 기능을 반영하려면 `apps-script-deploy.gs`를 Apps Script에 붙여넣고 기존 배포를 새 버전으로 업데이트한 뒤 `index.html`을 배포하세요.
