@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
@@ -367,7 +367,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwJ2KrlEkdnbxIJWDO9fXa8
 const REFRESH_MS = 60 * 1000;
 const PW_KEY = 'boss-schedule-pw';
 const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
-const DEFAULT_TIME = '13:00';   // 일정 추가 시 미리 채워지는 시간 (오후 1:00)
+const DEFAULT_TIME = '17:00';   // 일정 추가 시 미리 채워지는 시간 (오후 5:00)
 const DIFFICULTIES = ['이지', '노멀', '하드', '카오스', '익스트림'];
 
 const VIEW_KEY = 'boss-schedule-view';
@@ -507,6 +507,7 @@ function rowHTML(group) {
       ${it.memo ? `<div class="memo">${esc(it.memo)}</div>` : ''}
       ${editing ? `<div class="actions">
         <button data-act="edit" data-ids="${ids}">수정</button>
+        ${it.status === '예정' ? `<button data-act="complete" data-ids="${ids}">완료</button>` : ''}
         <button data-act="copy" data-ids="${ids}">다음 주로 복사</button>
         <button class="danger" data-act="delete" data-ids="${ids}">삭제</button>
       </div>` : ''}
@@ -894,9 +895,10 @@ $('list').addEventListener('click', (e) => {
   handleItemAction(e);
 });
 
+let itemActionPending = false;
 async function handleItemAction(e) {
   const btn = e.target.closest('button[data-act]');
-  if (!btn) return;
+  if (!btn || itemActionPending || !state.password) return;
   // 버튼은 파티 전체(보스 여러 마리)를 한꺼번에 다뤄요
   const group = (btn.dataset.ids || '').split(',')
     .map((id) => state.items.find((x) => x.id === id)).filter(Boolean);
@@ -905,17 +907,23 @@ async function handleItemAction(e) {
   const names = group.map((b) => b.boss).join(', ');
 
   if (btn.dataset.act === 'edit') openForm(groupToForm(group), '일정 수정', group.map((b) => b.id));
-  if (btn.dataset.act === 'copy') {
-    const d = parseDate(it.date); d.setDate(d.getDate() + 7);
-    openForm({ ...groupToForm(group), date: ymd(d), status: '예정' }, '다음 주로 복사');
-  }
-  if (btn.dataset.act === 'delete') {
-    if (!confirm(`${it.date} ${names} 일정${group.length > 1 ? ` ${group.length}개를 모두` : '을'} 삭제할까요?`)) return;
-    btn.disabled = true;
-    try {
+  const action = btn.dataset.act;
+  if (!['copy', 'complete', 'delete'].includes(action)) return;
+  if (action === 'delete' && !confirm(`${it.date} ${names} 일정을 삭제할까요?`)) return;
+  itemActionPending = true;
+  btn.disabled = true;
+  try {
+    if (action === 'delete') {
       for (const b of group) await api('delete', { id: b.id });
-      render(); toast(group.length > 1 ? `파티 일정 ${group.length}개를 삭제했어요` : '일정을 삭제했어요');
-    } catch (err) { render(); toast(err.message); }
+    } else {
+      await api(action, { ids: group.map(b => b.id) });
+    }
+    toast(action === 'copy' ? '다음 주로 복사했어요' : action === 'complete' ? '완료로 변경했어요' : '일정을 삭제했어요');
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    itemActionPending = false;
+    render();
   }
 }
 

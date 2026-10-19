@@ -72,6 +72,31 @@ function doPost(e) {
         break;
       }
 
+      case 'copy': {
+        const ids = [...new Set(item.ids || [])];
+        const all = readAll_();
+        const rows = ids.map(id => {
+          const source = all.find(x => x.id === id);
+          if (!source) throw new Error('일정을 찾을 수 없어요. 새로고침해 주세요');
+          const date = new Date(source.date + 'T00:00:00Z');
+          date.setUTCDate(date.getUTCDate() + 7);
+          return toRow_(Object.assign({}, source, {
+            id: Utilities.getUuid(), date: date.toISOString().slice(0, 10), status: '예정'
+          }));
+        });
+        if (!rows.length) throw new Error('복사할 일정이 없어요');
+        sh.getRange(sh.getLastRow() + 1, 1, rows.length, HEADERS.length).setNumberFormat('@').setValues(rows);
+        break;
+      }
+
+      case 'complete': {
+        const rows = [...new Set(item.ids || [])].map(id => findRow_(sh, id));
+        if (!rows.length || rows.some(r => !r)) throw new Error('일정을 찾을 수 없어요. 새로고침해 주세요');
+        const now = Utilities.formatDate(new Date(), tz_(), 'yyyy-MM-dd HH:mm');
+        rows.forEach(r => sh.getRange(r, 9, 1, 2).setValues([['완료', now]]));
+        break;
+      }
+
       default:
         return json_({ ok: false, error: '알 수 없는 요청이에요' });
     }
