@@ -711,20 +711,32 @@ function toast(msg) {
 }
 
 /* ---------- API ---------- */
+let loadPending = false;
+let dataRevision = 0;
 async function load() {
   if (!API_URL) { render(); return; }
+  if (loadPending) return;
+  loadPending = true;
+  const revision = dataRevision;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
   $('refreshBtn').classList.add('spin');
   try {
-    const res = await fetch(`${API_URL}?t=${Date.now()}`);
+    const res = await fetch(`${API_URL}?t=${Date.now()}`, { signal: controller.signal });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error);
+    if (revision !== dataRevision) return;
     state.items = data.items;
     state.loaded = true;
     state.error = '';
     state.updatedAt = new Date();
   } catch (err) {
-    state.error = err.message || '네트워크를 확인해 주세요';
+    if (revision === dataRevision) state.error = err.name === 'AbortError'
+      ? '응답이 늦어지고 있어요. 네트워크를 확인하고 새로고침해 주세요'
+      : err.message || '네트워크를 확인해 주세요';
   } finally {
+    clearTimeout(timeout);
+    loadPending = false;
     $('refreshBtn').classList.remove('spin');
     render();
     state.error = '';
@@ -744,7 +756,7 @@ async function api(action, item, password = state.password) {
     }
     throw new Error(data.error || '요청에 실패했어요');
   }
-  if (data.items) { state.items = data.items; state.updatedAt = new Date(); }
+  if (data.items) { dataRevision++; state.loaded = true; state.items = data.items; state.updatedAt = new Date(); }
   return data;
 }
 
