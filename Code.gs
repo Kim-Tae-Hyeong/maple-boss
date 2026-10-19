@@ -40,6 +40,8 @@ function doPost(e) {
     Utilities.sleep(800); // 비밀번호 무작위 대입 속도 늦추기
     return json_({ ok: false, error: '비밀번호가 틀렸어요' });
   }
+  // 인증만 할 때는 시트를 읽거나 다른 저장 요청의 잠금을 기다릴 필요가 없어요.
+  if (body.action === 'verify') return json_({ ok: true });
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -49,9 +51,6 @@ function doPost(e) {
     let createdId;
 
     switch (body.action) {
-      case 'verify':
-        return json_({ ok: true });
-
       case 'create': {
         const row = toRow_(Object.assign({}, item, { id: Utilities.getUuid().slice(0, 8) }));
         sh.getRange(sh.getLastRow() + 1, 1, 1, HEADERS.length).setNumberFormat('@').setValues([row]);
@@ -74,15 +73,19 @@ function doPost(e) {
 
       case 'copy': {
         const ids = [...new Set(item.ids || [])];
-        const all = readAll_();
+        const byId = new Map();
+        readAll_(sh).forEach(source => {
+          if (!byId.has(source.id)) byId.set(source.id, source);
+        });
+        const now = Utilities.formatDate(new Date(), tz_(), 'yyyy-MM-dd HH:mm');
         const rows = ids.map(id => {
-          const source = all.find(x => x.id === id);
+          const source = byId.get(id);
           if (!source) throw new Error('일정을 찾을 수 없어요. 새로고침해 주세요');
           const date = new Date(source.date + 'T00:00:00Z');
           date.setUTCDate(date.getUTCDate() + 7);
           return toRow_(Object.assign({}, source, {
             id: Utilities.getUuid(), date: date.toISOString().slice(0, 10), status: '예정'
-          }));
+          }), now);
         });
         if (!rows.length) throw new Error('복사할 일정이 없어요');
         sh.getRange(sh.getLastRow() + 1, 1, rows.length, HEADERS.length).setNumberFormat('@').setValues(rows);
@@ -90,17 +93,22 @@ function doPost(e) {
       }
 
       case 'complete': {
-        const rows = [...new Set(item.ids || [])].map(id => findRow_(sh, id));
+        const rows = findRows_(sh, [...new Set(item.ids || [])]);
         if (!rows.length || rows.some(r => !r)) throw new Error('일정을 찾을 수 없어요. 새로고침해 주세요');
         const now = Utilities.formatDate(new Date(), tz_(), 'yyyy-MM-dd HH:mm');
-        rows.forEach(r => sh.getRange(r, 9, 1, 2).setValues([['완료', now]]));
+        if (rows.length === 1) {
+          sh.getRange(rows[0], 9, 1, 2).setValues([['완료', now]]);
+        } else {
+          sh.getRangeList(rows.map(r => `I${r}`)).setValue('완료');
+          sh.getRangeList(rows.map(r => `J${r}`)).setValue(now);
+        }
         break;
       }
 
       default:
         return json_({ ok: false, error: '알 수 없는 요청이에요' });
     }
-    return json_({ ok: true, items: readAll_(), createdId });
+    return json_({ ok: true, items: readAll_(sh), createdId });
   } catch (err) {
     return json_({ ok: false, error: String(err.message || err) });
   } finally {
@@ -119,7 +127,7 @@ function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
-function toRow_(item) {
+function toRow_(item, updatedAt) {
   const text = (v, max) => (v == null ? '' : String(v).trim().slice(0, max || 200));
   const date = text(item.date);
   const time = text(item.time);
@@ -127,7 +135,7 @@ function toRow_(item) {
   if (time && !/^\d{2}:\d{2}$/.test(time)) throw new Error('시간 형식은 20:00 처럼 입력해 주세요');
   if (!text(item.boss)) throw new Error('보스 이름을 입력해 주세요');
 
-  const now = Utilities.formatDate(new Date(), tz_(), "yyyy-MM-dd HH:mm");
+  const now = updatedAt || Utilities.formatDate(new Date(), tz_(), 'yyyy-MM-dd HH:mm');
   const values = {
     id: text(item.id), date: date, time: time,
     boss: text(item.boss, 50), difficulty: text(item.difficulty, 20),
@@ -138,12 +146,21 @@ function toRow_(item) {
 }
 
 function findRow_(sh, id) {
-  if (!id) return 0;
-  const ids = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
+  return findRows_(sh, [id])[0];
+}
+
+// 여러 ID를 찾아도 열은 한 번만 읽고, 요청한 ID 순서대로 행 번호를 반환해요.
+function findRows_(sh, requestedIds) {
+  if (!requestedIds.length) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return requestedIds.map(() => 0);
+  const ids = sh.getRange(1, 1, lastRow, 1).getValues();
+  const rowsById = new Map();
   for (let i = 1; i < ids.length; i++) {
-    if (String(ids[i][0]) === String(id)) return i + 1;
+    const id = String(ids[i][0]);
+    if (!rowsById.has(id)) rowsById.set(id, i + 1);
   }
-  return 0;
+  return requestedIds.map(id => id ? rowsById.get(String(id)) || 0 : 0);
 }
 
 function tz_() {
@@ -151,19 +168,19 @@ function tz_() {
 }
 
 // 시트에서 직접 입력해서 날짜/시간이 Date로 바뀐 경우도 문자열로 맞춰요
-function cell_(v, key) {
+function cell_(v, key, timezone) {
   if (v instanceof Date) {
-    if (key === 'date') return Utilities.formatDate(v, tz_(), 'yyyy-MM-dd');
-    if (key === 'time') return Utilities.formatDate(v, tz_(), 'HH:mm');
-    return Utilities.formatDate(v, tz_(), 'yyyy-MM-dd HH:mm');
+    if (key === 'date') return Utilities.formatDate(v, timezone, 'yyyy-MM-dd');
+    if (key === 'time') return Utilities.formatDate(v, timezone, 'HH:mm');
+    return Utilities.formatDate(v, timezone, 'yyyy-MM-dd HH:mm');
   }
   return String(v).trim();
 }
 
-function readAll_() {
-  const sh = getSheet_();
+function readAll_(sh = getSheet_()) {
   const values = sh.getDataRange().getValues();
   const items = [];
+  let timezone;
   for (let i = 1; i < values.length; i++) {
     const r = values[i];
     if (r[1] === '' || r[1] == null) continue; // 날짜 없는 행은 건너뜀
@@ -173,7 +190,11 @@ function readAll_() {
       sh.getRange(i + 1, 1).setNumberFormat('@').setValue(r[0]);
     }
     const o = {};
-    HEADERS.forEach((h, j) => (o[h] = cell_(r[j] == null ? '' : r[j], h)));
+    HEADERS.forEach((h, j) => {
+      const value = r[j] == null ? '' : r[j];
+      if (value instanceof Date && !timezone) timezone = tz_();
+      o[h] = cell_(value, h, timezone);
+    });
     if (!o.status) o.status = '예정';
     items.push(o);
   }
