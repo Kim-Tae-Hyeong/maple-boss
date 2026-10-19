@@ -111,7 +111,21 @@
   .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .actions button {
     border: 1px solid var(--line); background: var(--surface); border-radius: 9px;
-    padding: 4px 12px; font-size: 13px; cursor: pointer;
+    padding: 6px 10px; min-height: 34px; font-size: 13px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    transition: background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+  }
+  .actions button svg { width: 15px; height: 15px; flex: none; }
+  .actions [data-act="copy"] { color: var(--hero); }
+  .actions [data-act="complete"] { color: #2F7048; border-color: #BDDAC7; background: #F1F8F3; }
+  .actions button:active { transform: translateY(1px); }
+  .actions [data-act="copy"]:focus-visible { background: #EAF0F6; border-color: var(--hero); }
+  .actions [data-act="complete"]:focus-visible { background: #2F7048; color: #fff; }
+  @media (hover: hover) and (pointer: fine) {
+    .actions button:hover:not(:disabled) { background: var(--sky); border-color: var(--muted); transform: translateY(-1px); }
+    .actions [data-act="copy"]:hover:not(:disabled) { background: var(--hero); color: #fff; border-color: var(--hero); }
+    .actions [data-act="complete"]:hover:not(:disabled) { background: #2F7048; color: #fff; border-color: #2F7048; }
+    .action-confirm:hover:not(:disabled) { filter: brightness(1.12); }
   }
   .actions .danger { color: var(--cancel); }
 
@@ -231,6 +245,33 @@
   .btn-main:disabled { opacity: .6; cursor: wait; }
   .form-err { color: var(--cancel); font-size: 14px; min-height: 1.2em; margin: 0 0 8px; }
 
+  /* 확인 → 처리 중: 같은 창 안에서 맥락을 유지해요. */
+  .action-dialog { --action-color: var(--hero); --action-track: var(--amber); width: min(420px, calc(100% - 28px)); }
+  .action-dialog[data-action="complete"] { --action-color: #2F7048; --action-track: #3F8A5C; }
+  .action-dialog .dlg { padding: 26px 24px 22px; }
+  .action-symbol { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; color: var(--action-color); background: var(--sky); margin-bottom: 16px; }
+  .action-symbol svg { width: 24px; height: 24px; }
+  .action-dialog[data-action="complete"] .action-symbol { background: #E3F1E8; }
+  .action-dialog h2 { margin-bottom: 8px; font-size: 27px; }
+  .action-bosses { margin: 0 0 18px; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+  .action-schedule { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-block: 1px solid var(--line); }
+  .action-schedule > div { flex: 1; min-width: 0; }
+  .action-schedule small { display: block; color: var(--muted); font-size: 12px; margin-bottom: 3px; }
+  .action-schedule strong { display: block; font-weight: 600; font-size: 16px; }
+  .action-schedule .destination { color: var(--action-color); }
+  .action-arrow { color: var(--muted); font-size: 20px; }
+  .action-note { color: var(--muted); font-size: 13px; margin: 12px 0 20px; }
+  .action-dialog .dlg-foot { margin-top: 20px; }
+  .action-confirm { background: var(--action-color); color: #fff; border: 0; transition: filter .16s ease; }
+  .action-dialog button:disabled { cursor: wait; opacity: .6; }
+  .action-progress { margin: 18px 0 4px; }
+  .action-progress p { color: var(--action-color); font-size: 14px; margin: 0 0 10px; }
+  .progress-track { height: 4px; overflow: hidden; border-radius: 4px; background: var(--sky); }
+  .progress-track span { display: block; height: 100%; width: 42%; border-radius: inherit; background: var(--action-track); animation: action-progress 1.4s ease-in-out infinite; }
+  @keyframes action-progress { from { transform: translateX(-110%); } to { transform: translateX(350%); } }
+  .action-error { color: var(--cancel); font-size: 14px; margin: 14px 0 0; }
+  .action-dialog [hidden] { display: none; }
+
   .toast {
     position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top)); transform: translate(-50%, -80px);
     background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 14px;
@@ -264,7 +305,7 @@
 
   /* 손가락으로 누르는 기기에서는 버튼을 더 두툼하게 */
   @media (pointer: coarse) {
-    .actions button { padding: 8px 14px; }
+    .actions button { padding: 8px 14px; min-height: 44px; }
     .cal-nav button { height: 38px; min-width: 38px; }
   }
 
@@ -299,6 +340,29 @@
 
 <button class="fab" id="addBtn" hidden>일정 추가</button>
 <div class="toast" id="toast" role="status"></div>
+
+<dialog id="actionDlg" class="action-dialog" aria-labelledby="actionTitle" aria-describedby="actionBosses actionNote">
+  <div class="dlg">
+    <div class="action-symbol" id="actionSymbol" aria-hidden="true"></div>
+    <h2 id="actionTitle"></h2>
+    <p class="action-bosses" id="actionBosses"></p>
+    <div class="action-schedule">
+      <div><small>현재 일정</small><strong id="actionFrom"></strong></div>
+      <span class="action-arrow" aria-hidden="true">→</span>
+      <div class="destination"><small id="actionToLabel"></small><strong id="actionTo"></strong></div>
+    </div>
+    <p class="action-note" id="actionNote"></p>
+    <div class="action-progress" id="actionProgress" role="status" hidden>
+      <p id="actionProgressText"></p>
+      <div class="progress-track" role="progressbar" aria-label="일정 처리 중"><span></span></div>
+    </div>
+    <p class="action-error" id="actionError" role="alert" hidden></p>
+    <div class="dlg-foot">
+      <button type="button" class="btn-ghost" id="actionCancel" autofocus>취소</button>
+      <button type="button" class="action-confirm" id="actionConfirm"></button>
+    </div>
+  </div>
+</dialog>
 
 <!-- 비밀번호 -->
 <dialog id="loginDlg">
@@ -422,6 +486,10 @@ function countdown(it) {
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ACTION_ICONS = {
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M15 4H7a3 3 0 0 0-3 3v8M12 14h4m-2-2v4"/></svg>',
+  complete: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>'
+};
 
 /* 파티원은 숫자로 저장하고 보여줄 때만 "명"을 붙여요 (시트에 직접 적은 글자는 그대로) */
 const partyText = (v) => {
@@ -507,8 +575,8 @@ function rowHTML(group) {
       ${it.memo ? `<div class="memo">${esc(it.memo)}</div>` : ''}
       ${editing ? `<div class="actions">
         <button data-act="edit" data-ids="${ids}">수정</button>
-        ${it.status === '예정' ? `<button data-act="complete" data-ids="${ids}">완료</button>` : ''}
-        <button data-act="copy" data-ids="${ids}">다음 주로 복사</button>
+        ${it.status === '예정' ? `<button data-act="complete" data-ids="${ids}">${ACTION_ICONS.complete}완료</button>` : ''}
+        <button data-act="copy" data-ids="${ids}">${ACTION_ICONS.copy}다음 주로 복사</button>
         <button class="danger" data-act="delete" data-ids="${ids}">삭제</button>
       </div>` : ''}
     </div>
@@ -743,18 +811,21 @@ async function load() {
   }
 }
 
-async function api(action, item, password = state.password) {
+async function api(action, item, password = state.password, signal) {
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // CORS 사전 요청을 피하기 위한 설정
-    body: JSON.stringify({ action, password, item })
+    body: JSON.stringify({ action, password, item }),
+    signal
   });
   const data = await res.json();
   if (!data.ok) {
     if (data.error === '비밀번호가 틀렸어요' && action !== 'verify') {
       state.password = null; pwStore.clear(); renderChrome();
     }
-    throw new Error(data.error || '요청에 실패했어요');
+    const error = new Error(data.error || '요청에 실패했어요');
+    error.responseReceived = true;
+    throw error;
   }
   if (data.items) { dataRevision++; state.loaded = true; state.items = data.items; state.updatedAt = new Date(); }
   return data;
@@ -908,9 +979,95 @@ $('list').addEventListener('click', (e) => {
 });
 
 let itemActionPending = false;
+let actionRequest = null;
+let actionNeedsRefresh = false;
+let actionOpener = null;
+
+function openActionDialog(action, group, opener) {
+  const it = group[0];
+  const copy = action === 'copy';
+  const date = parseDate(it.date);
+  date.setDate(date.getDate() + 7);
+  actionRequest = { action, ids: group.map(b => b.id) };
+  actionNeedsRefresh = false;
+  actionOpener = opener;
+  $('actionDlg').dataset.action = action;
+  $('actionSymbol').innerHTML = ACTION_ICONS[action];
+  $('actionTitle').textContent = copy ? '다음 주로 복사하시겠습니까?' : '완료하시겠습니까?';
+  $('actionBosses').textContent = group.map(b => [b.difficulty, b.boss].filter(Boolean).join(' ')).join(', ');
+  $('actionFrom').textContent = `${it.date} · ${it.time || '시간 미정'}`;
+  $('actionToLabel').textContent = copy ? '다음 주 일정' : '변경할 상태';
+  $('actionTo').textContent = copy ? `${ymd(date)} · ${it.time || '시간 미정'}` : '완료';
+  $('actionNote').textContent = copy
+    ? `시간과 파티 정보는 그대로, ${group.length > 1 ? '보스 ' + group.length + '개의 일정을' : '새 일정을'} 예정 상태로 추가해요.`
+    : group.length > 1 ? `이 파티의 보스 ${group.length}개를 모두 완료로 변경해요.` : '이 보스 일정을 완료로 변경해요.';
+  $('actionConfirm').textContent = copy ? '다음 주로 복사' : '완료하기';
+  $('actionConfirm').disabled = false;
+  $('actionConfirm').hidden = false;
+  $('actionCancel').textContent = '취소';
+  $('actionCancel').disabled = false;
+  $('actionProgress').hidden = true;
+  $('actionError').hidden = true;
+  $('actionError').textContent = '';
+  $('actionDlg').showModal();
+}
+
+$('actionCancel').addEventListener('click', () => {
+  if (!itemActionPending) $('actionDlg').close();
+});
+$('actionDlg').addEventListener('cancel', e => {
+  if (itemActionPending) e.preventDefault();
+});
+$('actionDlg').addEventListener('close', () => {
+  actionRequest = null;
+  if (actionOpener && actionOpener.isConnected) actionOpener.focus();
+  else $('refreshBtn').focus();
+  if (actionNeedsRefresh) { actionNeedsRefresh = false; load(); }
+});
+
+$('actionConfirm').addEventListener('click', async () => {
+  if (!actionRequest || itemActionPending) return;
+  const { action, ids } = actionRequest;
+  itemActionPending = true;
+  $('actionConfirm').disabled = true;
+  $('actionCancel').disabled = true;
+  $('actionConfirm').textContent = action === 'copy' ? '복사 중' : '완료 처리 중';
+  $('actionProgressText').textContent = action === 'copy' ? '다음 주 일정을 추가하고 있어요' : '완료 상태를 저장하고 있어요';
+  $('actionProgress').hidden = false;
+  $('actionDlg').setAttribute('aria-busy', 'true');
+  const controller = new AbortController();
+  const slowTimer = setTimeout(() => {
+    $('actionProgressText').textContent = '응답을 기다리고 있어요. 잠시만 기다려 주세요';
+  }, 8000);
+  const timeout = setTimeout(() => controller.abort(), 45000);
+  try {
+    await api(action, { ids }, state.password, controller.signal);
+    render();
+    $('actionDlg').close();
+    toast(action === 'copy' ? '다음 주로 복사했어요' : '완료로 변경했어요');
+  } catch (err) {
+    // 응답이 끊겨도 저장은 됐을 수 있어요. 자동 재전송은 하지 않아요.
+    $('actionError').textContent = err.responseReceived ? err.message
+      : '응답을 확인하지 못했어요. 이미 반영됐을 수 있으니 새로고침 후 일정을 확인해 주세요.';
+    $('actionError').hidden = false;
+    $('actionConfirm').hidden = true;
+    $('actionCancel').textContent = '닫고 새로고침';
+    actionNeedsRefresh = true;
+    render();
+  } finally {
+    clearTimeout(slowTimer);
+    clearTimeout(timeout);
+    itemActionPending = false;
+    $('actionProgress').hidden = true;
+    $('actionDlg').setAttribute('aria-busy', 'false');
+    $('actionCancel').disabled = false;
+    if ($('actionDlg').open) $('actionCancel').focus();
+  }
+});
+
 async function handleItemAction(e) {
   const btn = e.target.closest('button[data-act]');
-  if (!btn || itemActionPending || !state.password) return;
+  if (!btn || itemActionPending || $('actionDlg').open || !state.password) return;
   // 버튼은 파티 전체(보스 여러 마리)를 한꺼번에 다뤄요
   const group = (btn.dataset.ids || '').split(',')
     .map((id) => state.items.find((x) => x.id === id)).filter(Boolean);
@@ -920,17 +1077,16 @@ async function handleItemAction(e) {
 
   if (btn.dataset.act === 'edit') openForm(groupToForm(group), '일정 수정', group.map((b) => b.id));
   const action = btn.dataset.act;
-  if (!['copy', 'complete', 'delete'].includes(action)) return;
-  if (action === 'delete' && !confirm(`${it.date} ${names} 일정을 삭제할까요?`)) return;
+  if (action === 'copy' || action === 'complete') {
+    openActionDialog(action, group, btn);
+    return;
+  }
+  if (action !== 'delete' || !confirm(`${it.date} ${names} 일정을 삭제할까요?`)) return;
   itemActionPending = true;
   btn.disabled = true;
   try {
-    if (action === 'delete') {
-      for (const b of group) await api('delete', { id: b.id });
-    } else {
-      await api(action, { ids: group.map(b => b.id) });
-    }
-    toast(action === 'copy' ? '다음 주로 복사했어요' : action === 'complete' ? '완료로 변경했어요' : '일정을 삭제했어요');
+    for (const b of group) await api('delete', { id: b.id });
+    toast('일정을 삭제했어요');
   } catch (err) {
     toast(err.message);
   } finally {
