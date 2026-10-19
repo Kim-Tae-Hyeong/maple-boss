@@ -46,6 +46,7 @@ function doPost(e) {
   try {
     const sh = getSheet_();
     const item = body.item || {};
+    let createdId;
 
     switch (body.action) {
       case 'verify':
@@ -54,6 +55,7 @@ function doPost(e) {
       case 'create': {
         const row = toRow_(Object.assign({}, item, { id: Utilities.getUuid().slice(0, 8) }));
         sh.getRange(sh.getLastRow() + 1, 1, 1, HEADERS.length).setNumberFormat('@').setValues([row]);
+        createdId = row[0];
         break;
       }
 
@@ -66,15 +68,14 @@ function doPost(e) {
 
       case 'delete': {
         const r = findRow_(sh, item.id);
-        if (!r) return json_({ ok: false, error: '이미 삭제된 일정이에요' });
-        sh.deleteRow(r);
+        if (r) sh.deleteRow(r);
         break;
       }
 
       default:
         return json_({ ok: false, error: '알 수 없는 요청이에요' });
     }
-    return json_({ ok: true, items: readAll_() });
+    return json_({ ok: true, items: readAll_(), createdId });
   } catch (err) {
     return json_({ ok: false, error: String(err.message || err) });
   } finally {

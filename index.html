@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
@@ -853,6 +853,7 @@ form.addEventListener('submit', async (e) => {
   if (!bosses.length) { $('formErr').textContent = '보스를 한 개 이상 입력해 주세요'; return; }
 
   const btn = $('formSubmit');
+  const wasEditing = editIds.length > 0;
   const ids = editIds;                       // 이 파티가 이미 갖고 있던 줄들
   const gone = ids.slice(bosses.length);     // 보스를 빼면 그 줄은 지워요
   const total = bosses.length + gone.length;
@@ -863,22 +864,21 @@ form.addEventListener('submit', async (e) => {
     for (let i = 0; i < bosses.length; i++) {
       btn.textContent = total > 1 ? `저장 중 ${saved + 1}/${total}` : '저장 중';
       const id = ids[i] || '';
-      await api(id ? 'update' : 'create', Object.assign({}, base, bosses[i], { id }));
+      const result = await api(id ? 'update' : 'create', Object.assign({}, base, bosses[i], { id }));
       if (!id) {
-        // 새로 만든 줄의 id를 기억해 둬요 (중간에 실패해 다시 저장해도 중복으로 안 생기게)
-        const made = state.items.find((x) => x.boss === bosses[i].boss && x.date === base.date
-          && (x.time || '') === (base.time || '') && !ids.includes(x.id));
-        if (made) ids[i] = made.id;
+        if (!result.createdId) throw new Error('Apps Script를 최신 버전으로 배포해 주세요. 저장된 일정은 새로고침해서 확인해 주세요');
+        ids[i] = result.createdId;
       }
       saved++;
     }
     for (const id of gone) {
       btn.textContent = `저장 중 ${saved + 1}/${total}`;
       await api('delete', { id });
+      ids.splice(ids.indexOf(id), 1);
       saved++;
     }
     $('formDlg').close(); render();
-    if (editIds.length) toast(bosses.length > 1 ? `파티 일정 ${bosses.length}개를 저장했어요` : '일정을 수정했어요');
+    if (wasEditing) toast(bosses.length > 1 ? `파티 일정 ${bosses.length}개를 저장했어요` : '일정을 수정했어요');
     else toast(bosses.length > 1 ? `일정 ${bosses.length}개를 추가했어요` : '일정을 추가했어요');
   } catch (err) {
     // 여러 개 중 일부만 저장됐을 수 있으니 어디까지 됐는지 알려줘요
